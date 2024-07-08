@@ -102,7 +102,7 @@ static void CoreAudioInputCallback(void *userdata, AudioQueueRef inAQ, AudioQueu
 {
 	// Read our data from the output buffer
 	struct CNFADriverCoreAudio * r = (struct CNFADriverCoreAudio*)userdata;
-	r->callback((struct CNFADriver*)r, NULL, (const short*)inBuffer->mAudioData, 0, inBuffer->mAudioDataBytes / sizeof(short));
+	r->callback((struct CNFADriver*)r, NULL, (const short*)inBuffer->mAudioData, 0, inBuffer->mAudioDataByteSize / sizeof(short));
 }
 
 void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay, int reqSPSRec, int reqChannelsPlay, int reqChannelsRec, int sugBufferSize, const char * outputSelect, const char * inputSelect, void * opaque )
@@ -144,7 +144,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 		// Always 1 for uncompressed audio
 		playDesc.mFramesPerPacket = 1;
 
-		OSStatus result = AudioQueueNewOutput(&playDesc, CoreAudioInputCallback, (void*)r, NULL /* Default run loop*/, NULL /* Equivalent to kCFRunLoopCommonModes */, 0 /* flags, reserved*/, &r->play);
+		OSStatus result = AudioQueueNewOutput(&playDesc, CoreAudioOutputCallback, (void*)r, NULL /* Default run loop*/, NULL /* Equivalent to kCFRunLoopCommonModes */, 0 /* flags, reserved*/, &r->play);
 
 		if( 0 != result )
 		{
