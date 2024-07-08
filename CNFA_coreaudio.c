@@ -56,13 +56,13 @@ void CloseCNFACoreAudio( void * v )
 
 		if( r->play )
 		{
-			AudioQueueDispose(r->play);
+			AudioQueueDispose(r->play, true);
 			r->play = 0;
 		}
 
 		if( r->rec )
 		{
-			AudioQueueDispose(r->rec);
+			AudioQueueDispose(r->rec, true);
 			r->rec = 0;
 		}
 
@@ -183,8 +183,8 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 fail:
 	if( r )
 	{
-		if( r->play ) AudioQueueDispose (r->play);
-		if( r->rec ) AudioQueueDispose (r->rec);
+		if( r->play ) AudioQueueDispose (r->play, true);
+		if( r->rec ) AudioQueueDispose (r->rec, true);
 		free( r );
 	}
 	return 0;
