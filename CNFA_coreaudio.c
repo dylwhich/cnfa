@@ -5,7 +5,6 @@
 #include "os_generic.h"
 #include <stdlib.h>
 
-#include <CoreAudioTypes.h>
 #include <AudioQueue.h>
 #include <stdio.h>
 #include <string.h>
