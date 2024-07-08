@@ -5,7 +5,7 @@
 // Easily output and input sound on a variety of platforms.
 //
 // Options:
-//  * #define CNFA_IMPLEMENTATION before this header and it will build all 
+//  * #define CNFA_IMPLEMENTATION before this header and it will build all
 //    definitions in.
 //
 
