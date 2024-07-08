@@ -134,7 +134,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 	if( r->channelsPlay )
 	{
 		AudioStreamBasicDescription playDesc = {0};
-		playDesc.mAudioFormat = kAudioFormatLinearPCM;
+		playDesc.mFormatID = kAudioFormatLinearPCM;
 		playDesc.mSampleRate = r->spsPlay;
 		playDesc.mBitsPerChannel = 16;
 		// Bytes per channel, multiplied by number of channels
@@ -157,7 +157,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 	if( r->channelsRec )
 	{
 		AudioStreamBasicDescription recDesc = {0};
-		recDesc.mAudioFormat = kAudioFormatLinearPCM;
+		recDesc.mFormatID = kAudioFormatLinearPCM;
 		recDesc.mSampleRate = r->spsRec;
 		recDesc.mBitsPerChannel = 16;
 		// Bytes per channel, multiplied by number of channels
