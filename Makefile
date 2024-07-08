@@ -35,7 +35,7 @@ LDFLAGS += -lpulse -DPULSEAUDIO
 endif
 
 example : example.c os_generic.h
-	$(CC) -o $@ $^ $(LDFLAGS) -lm
+	$(CC) -o $< $^ $(LDFLAGS) -lm
 
 wav_player: shared
 	make -C wave_player PULSE=$(PULSE)
