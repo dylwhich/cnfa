@@ -144,7 +144,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 		// Always 1 for uncompressed audio
 		playDesc.mFramesPerPacket = 1;
 
-		OSStatus result = AudioQueueNewOutput(&playDesc, coreAudioInCallback, (void*)r, NULL /* Default run loop*/, NULL /* Equivalent to kCFRunLoopCommonModes */, 0 /* flags, reserved*/, &r->play);
+		OSStatus result = AudioQueueNewOutput(&playDesc, CoreAudioInputCallback, (void*)r, NULL /* Default run loop*/, NULL /* Equivalent to kCFRunLoopCommonModes */, 0 /* flags, reserved*/, &r->play);
 
 		if( 0 != result )
 		{
@@ -156,7 +156,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 
 	if( r->channelsRec )
 	{
-		AudioStreamBasicDescriptor recDesc = {0};
+		AudioStreamBasicDescription recDesc = {0};
 		recDesc.mAudioFormat = kAudioFormatLinearPCM;
 		recDesc.mSampleRate = r->spsRec;
 		recDesc.mBitsPerChannel = 16;
