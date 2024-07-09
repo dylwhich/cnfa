@@ -3,6 +3,7 @@
 // TODO:
 // - Test recording
 // - Device selection
+// - dylib build
 
 #include "CNFA.h"
 #include "os_generic.h"
