@@ -1,5 +1,8 @@
 //Copyright 2015-2020 <>< Charles Lohr under the MIT/x11, NewBSD or ColorChord License.  You choose.
 
+// TODO:
+// - Test recording
+// - Device selection
 
 #include "CNFA.h"
 #include "os_generic.h"
@@ -27,17 +30,16 @@ struct CNFADriverCoreAudio
 	int spsRec;
 	void * opaque;
 
+	// CoreAudio-specific fields
 	char * sourceNamePlay;
 	char * sourceNameRec;
 
-	og_thread_t thread;
 	AudioQueueRef   play;
 	AudioQueueRef   rec;
 
-	int buffer;
-	//More fields may exist on a per-sound-driver basis
+	AudioQueueBufferRef playBuffers[BUFFERSETS];
+	AudioQueueBufferRef recBuffers[BUFFERSETS];
 };
-
 
 int CNFAStateCoreAudio( void * v )
 {
@@ -50,10 +52,6 @@ void CloseCNFACoreAudio( void * v )
 	struct CNFADriverCoreAudio * r = (struct CNFADriverCoreAudio *)v;
 	if( r )
 	{
-		OGCancelThread( r->thread );
-
-		OGUSleep(2000);
-
 		if( r->play )
 		{
 			AudioQueueDispose(r->play, true);
@@ -65,8 +63,6 @@ void CloseCNFACoreAudio( void * v )
 			AudioQueueDispose(r->rec, true);
 			r->rec = 0;
 		}
-
-		OGUSleep(2000);
 
 		if( r->sourceNamePlay ) free( r->sourceNamePlay );
 		if( r->sourceNameRec ) free( r->sourceNameRec );
@@ -83,12 +79,11 @@ static void CoreAudioOutputCallback(void *userdata, AudioQueueRef inAQ, AudioQue
 		return;
 	}
 
-	//short buf[inBuffer->mAudioDataBytesCapacity / sizeof(short)];
-
-	r->callback((struct CNFADriver*)r, (short*)inBuffer->mAudioData, NULL, inBuffer->mAudioDataBytesCapacity / sizeof(short), 0);
+	r->callback((struct CNFADriver*)r, (short*)inBuffer->mAudioData, NULL, inBuffer->mAudioDataBytesCapacity / sizeof(short) / r->channelsPlay, 0);
 	// Assume the buffer was completely filled?
 	inBuffer->mAudioDataByteSize = inBuffer->mAudioDataBytesCapacity;
 
+	// I think this isn't necessary for non-compressed audio formats
 	if (inBuffer->mPacketDescriptionCapacity > 0)
 	{
 		inBuffer->mPacketDescriptionCount = 1;
@@ -96,13 +91,16 @@ static void CoreAudioOutputCallback(void *userdata, AudioQueueRef inAQ, AudioQue
 		inBuffer->mPacketDescriptions[0].mStartOffset = 0;
 		inBuffer->mPacketDescriptions[0].mVariableFramesInPacket = 0;
 	}
+
+	// Actually send the buffer to be played!
+	AudioQueueEnqueueBuffer(inAQ, inBuffer, 0, NULL);
 }
 
 static void CoreAudioInputCallback(void *userdata, AudioQueueRef inAQ, AudioQueueBufferRef inBuffer, const AudioTimeStamp *inStartTime, UInt32 inNumberPacketDescriptions, const AudioStreamPacketDescription *inPacketDescs)
 {
 	// Read our data from the output buffer
 	struct CNFADriverCoreAudio * r = (struct CNFADriverCoreAudio*)userdata;
-	r->callback((struct CNFADriver*)r, NULL, (const short*)inBuffer->mAudioData, 0, inBuffer->mAudioDataByteSize / sizeof(short));
+	r->callback((struct CNFADriver*)r, NULL, (short*)inBuffer->mAudioData, 0, inBuffer->mAudioDataByteSize / sizeof(short));
 }
 
 void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay, int reqSPSRec, int reqChannelsPlay, int reqChannelsRec, int sugBufferSize, const char * outputSelect, const char * inputSelect, void * opaque )
@@ -122,6 +120,9 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 	r->sourceNamePlay = outputSelect?strdup(outputSelect):0;
 	r->sourceNameRec = inputSelect?strdup(inputSelect):0;
 
+	memset(r->playBuffers, 0, sizeof(r->playBuffers));
+	memset(r->recBuffers, 0, sizeof(r->recBuffers));
+
 	r->play = 0;
 	r->rec = 0;
 	r->buffer = sugBufferSize;
@@ -135,14 +136,16 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 	{
 		AudioStreamBasicDescription playDesc = {0};
 		playDesc.mFormatID = kAudioFormatLinearPCM;
+		playDesc.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kAudioFormatIsPacked;
 		playDesc.mSampleRate = r->spsPlay;
-		playDesc.mBitsPerChannel = 16;
+		playDesc.mBitsPerChannel = 8 * sizeof(short);
+		playDesc.mChannelsPerFrame = r->channelsPlay;
 		// Bytes per channel, multiplied by number of channels
 		playDesc.mBytesPerFrame = r->channelsPlay * (playDesc.mBitsPerChannel / 8);
-		// Variable packet size
-		playDesc.mBytesPerPacket = 0;
 		// Always 1 for uncompressed audio
 		playDesc.mFramesPerPacket = 1;
+		playDesc.mBytesPerPacket = playDesc.mBytesPerFrame * playDesc.mFramesPerPacket;
+		playDesc.mReserved = 0;
 
 		OSStatus result = AudioQueueNewOutput(&playDesc, CoreAudioOutputCallback, (void*)r, NULL /* Default run loop*/, NULL /* Equivalent to kCFRunLoopCommonModes */, 0 /* flags, reserved*/, &r->play);
 
@@ -152,20 +155,36 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 			goto fail;
 		}
 
+		for (int i = 0; i < BUFFERSETS; i++)
+		{
+			result = AudioQueueAllocateBuffer(r->play, sugBufferSize, &r->playBuffers[i]);
+
+			if (0 != result)
+			{
+				fprintf(stderr, __FILE__": (PLAY) AudioQueueNewOutput() failed: %s\n", strerror(result));
+				goto fail;
+			}
+
+			// Prefill buffer
+			CoreAudioOutputCallback(r, r->play, r->playBuffers[i]);
+		}
+
+		AudioQueueStart(r->play, NULL);
 	}
 
 	if( r->channelsRec )
 	{
 		AudioStreamBasicDescription recDesc = {0};
 		recDesc.mFormatID = kAudioFormatLinearPCM;
+		playDesc.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
 		recDesc.mSampleRate = r->spsRec;
-		recDesc.mBitsPerChannel = 16;
+		recDesc.mBitsPerChannel = sizeof(short);
+		recDesc.mChannelsPerFrame = r->channelsRec;
 		// Bytes per channel, multiplied by number of channels
-		recDesc.mBytesPerFrame = r->channelsRec * (recDesc.mBitsPerChannel / 8);
-		// Variable packet size
-		recDesc.mBytesPerPacket = 0;
+		recDesc.mBytesPerFrame = recDesc.mChannelsPerFrame * (recDesc.mBitsPerChannel / 8);
 		// Always 1 for uncompressed audio
 		recDesc.mFramesPerPacket = 1;
+		recDesc.mBytesPerPacket = recDesc.mBytesPerFrame * recDesc.mFramesPerPacket;
 
 		OSStatus result = AudioQueueNewInput(&recDesc, CoreAudioInputCallback, (void*)r, NULL, NULL, 0, &r->rec);
 
@@ -174,6 +193,21 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 			fprintf(stderr, __FILE__": (RECORD) AudioQueueNewInput() failed: %s\n", strerror(result));
 			goto fail;
 		}
+
+		for (int i = 0; i < BUFFERSETS; i++)
+		{
+			result = AudioQueueAllocateBuffer(r->rec, sugBufferSize, &r->recBuffers[i]);
+
+			if (0 != result)
+			{
+				fprintf(stderr, __FILE__": (RECORD) AudioQueueNewOutput() failed: %s\n", strerror(result));
+				goto fail;
+			}
+
+			// No buffer prefill for input
+		}
+
+		AudioQueueStart(r->rec, NULL);
 	}
 
 	printf( "CoreAudio initialized.\n" );
@@ -183,8 +217,17 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 fail:
 	if( r )
 	{
-		if( r->play ) AudioQueueDispose (r->play, true);
-		if( r->rec ) AudioQueueDispose (r->rec, true);
+		if( r->play )
+		{
+			// Buffers are automatically freed with the queue
+			AudioQueueDispose (r->play, true);
+		}
+
+		if( r->rec )
+		{
+			// Buffers are automatically freed with the queue
+			AudioQueueDispose (r->rec, true);
+		}
 		free( r );
 	}
 	return 0;
