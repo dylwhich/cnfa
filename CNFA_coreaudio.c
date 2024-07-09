@@ -180,7 +180,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 		recDesc.mFormatID = kAudioFormatLinearPCM;
 		recDesc.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
 		recDesc.mSampleRate = r->spsRec;
-		recDesc.mBitsPerChannel = sizeof(short);
+		recDesc.mBitsPerChannel = 8 * sizeof(short);
 		recDesc.mChannelsPerFrame = r->channelsRec;
 		// Bytes per channel, multiplied by number of channels
 		recDesc.mBytesPerFrame = recDesc.mChannelsPerFrame * (recDesc.mBitsPerChannel / 8);
