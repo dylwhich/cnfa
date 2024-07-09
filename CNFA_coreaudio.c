@@ -39,6 +39,8 @@ struct CNFADriverCoreAudio
 
 	AudioQueueBufferRef playBuffers[BUFFERSETS];
 	AudioQueueBufferRef recBuffers[BUFFERSETS];
+
+	int buffer;
 };
 
 int CNFAStateCoreAudio( void * v )
@@ -136,7 +138,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 	{
 		AudioStreamBasicDescription playDesc = {0};
 		playDesc.mFormatID = kAudioFormatLinearPCM;
-		playDesc.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kAudioFormatIsPacked;
+		playDesc.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
 		playDesc.mSampleRate = r->spsPlay;
 		playDesc.mBitsPerChannel = 8 * sizeof(short);
 		playDesc.mChannelsPerFrame = r->channelsPlay;
@@ -157,7 +159,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 
 		for (int i = 0; i < BUFFERSETS; i++)
 		{
-			result = AudioQueueAllocateBuffer(r->play, sugBufferSize, &r->playBuffers[i]);
+			result = AudioQueueAllocateBuffer(r->play, bufBytesPlay, &r->playBuffers[i]);
 
 			if (0 != result)
 			{
@@ -196,7 +198,7 @@ void * InitCNFACoreAudio( CNFACBType cb, const char * your_name, int reqSPSPlay,
 
 		for (int i = 0; i < BUFFERSETS; i++)
 		{
-			result = AudioQueueAllocateBuffer(r->rec, sugBufferSize, &r->recBuffers[i]);
+			result = AudioQueueAllocateBuffer(r->rec, bufBytesRec, &r->recBuffers[i]);
 
 			if (0 != result)
 			{
